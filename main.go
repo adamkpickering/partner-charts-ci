@@ -1018,7 +1018,11 @@ func getLatestTracked(tracked []string) *semver.Version {
 }
 
 func getStoredVersions(chartName string) (repo.ChartVersions, error) {
-	helmIndexYaml, err := readIndex()
+	indexFilePath := filepath.Join(getRepoRoot(), indexFile)
+	helmIndexYaml, err := repo.LoadIndexFile(indexFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load index.yaml: %w", err)
+	}
 	storedVersions := repo.ChartVersions{}
 	if err != nil {
 		return storedVersions, err
@@ -1032,7 +1036,11 @@ func getStoredVersions(chartName string) (repo.ChartVersions, error) {
 
 // Fetches latest stored version of chart from current index, if any
 func getLatestStoredVersion(chartName string) (repo.ChartVersion, error) {
-	helmIndexYaml, err := readIndex()
+	indexFilePath := filepath.Join(getRepoRoot(), indexFile)
+	helmIndexYaml, err := repo.LoadIndexFile(indexFilePath)
+	if err != nil {
+		return repo.ChartVersion{}, fmt.Errorf("failed to load index.yaml: %w", err)
+	}
 	latestVersion := repo.ChartVersion{}
 	if err != nil {
 		return latestVersion, err
@@ -1045,9 +1053,10 @@ func getLatestStoredVersion(chartName string) (repo.ChartVersion, error) {
 }
 
 func getByAnnotation(annotation, value string) map[string]repo.ChartVersions {
-	indexYaml, err := readIndex()
+	indexFilePath := filepath.Join(getRepoRoot(), indexFile)
+	indexYaml, err := repo.LoadIndexFile(indexFilePath)
 	if err != nil {
-		logrus.Fatal(err)
+		logrus.Fatalf("failed to load index.yaml: %s", err)
 	}
 	matchedVersions := make(map[string]repo.ChartVersions)
 
@@ -1079,9 +1088,10 @@ func getByAnnotation(annotation, value string) map[string]repo.ChartVersions {
 
 func removeVersionFromIndex(chartName string, version repo.ChartVersion) error {
 	entryIndex := -1
-	indexYaml, err := readIndex()
+	indexFilePath := filepath.Join(getRepoRoot(), indexFile)
+	indexYaml, err := repo.LoadIndexFile(indexFilePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load index.yaml: %w", err)
 	}
 	if _, ok := indexYaml.Entries[chartName]; !ok {
 		return fmt.Errorf("%s not present in index entries", chartName)
@@ -1105,17 +1115,9 @@ func removeVersionFromIndex(chartName string, version repo.ChartVersion) error {
 		return fmt.Errorf("version %s not found for chart %s in index", version.Version, chartName)
 	}
 
-	indexFilePath := filepath.Join(getRepoRoot(), indexFile)
 	err = indexYaml.WriteFile(indexFilePath, 0644)
 
 	return err
-}
-
-// Reads in current index yaml
-func readIndex() (*repo.IndexFile, error) {
-	indexFilePath := filepath.Join(getRepoRoot(), indexFile)
-	helmIndexYaml, err := repo.LoadIndexFile(indexFilePath)
-	return helmIndexYaml, err
 }
 
 // Writes out modified index file
