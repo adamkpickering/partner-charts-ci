@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -345,7 +346,7 @@ func (packageWrapper PackageWrapper) annotate(annotation, value string, remove, 
 
 	}
 
-	err = writeIndex()
+	err = ensureIndexYaml()
 
 	return err
 }
@@ -1120,32 +1121,27 @@ func removeVersionFromIndex(chartName string, version repo.ChartVersion) error {
 	return err
 }
 
-// Writes out modified index file
-func writeIndex() error {
+// ensureIndexYaml indexes the assets directory and merges the result
+// with the current (if present) index.yaml.
+func ensureIndexYaml() error {
 	indexFilePath := filepath.Join(getRepoRoot(), indexFile)
-	if _, err := os.Stat(indexFilePath); os.IsNotExist(err) {
-		err = repo.NewIndexFile().WriteFile(indexFilePath, 0644)
-		if err != nil {
-			return err
-		}
-	}
-
 	helmIndexYaml, err := repo.LoadIndexFile(indexFilePath)
-	if err != nil {
-		return err
+	if errors.Is(err, os.ErrNotExist) {
+		helmIndexYaml = repo.NewIndexFile()
+	} else if err != nil {
+		return fmt.Errorf("failed to load index.yaml: %w", err)
 	}
 
 	assetsDirectoryPath := filepath.Join(getRepoRoot(), repositoryAssetsDir)
 	newHelmIndexYaml, err := repo.IndexDirectory(assetsDirectoryPath, repositoryAssetsDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to index %q: %w", repositoryAssetsDir, err)
 	}
 	helmIndexYaml.Merge(newHelmIndexYaml)
 	helmIndexYaml.SortEntries()
 
-	err = helmIndexYaml.WriteFile(indexFilePath, 0644)
-	if err != nil {
-		return err
+	if err := helmIndexYaml.WriteFile(indexFilePath, 0644); err != nil {
+		return fmt.Errorf("failed to write index.yaml: %w", err)
 	}
 
 	return nil
@@ -1396,8 +1392,7 @@ func generateChanges(auto bool, stage bool) {
 			logrus.Fatalf("All packages skipped. Exiting...")
 		}
 		if auto || stage {
-			err = writeIndex()
-			if err != nil {
+			if err = ensureIndexYaml(); err != nil {
 				logrus.Error(err)
 			}
 		}
