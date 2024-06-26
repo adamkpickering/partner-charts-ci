@@ -53,17 +53,17 @@ func CheckFilesStructure() {
 	}
 }
 
-// CheckForDownloadedIcon will check if the icon is already downloaded and return the path
-func CheckForDownloadedIcon(packageName string) string {
+// GetDownloadedIconPath checks if the icon is already downloaded and return the path
+func GetDownloadedIconPath(packageName string) (string, error) {
 
 	for _, ext := range extensions {
 		filePath := fmt.Sprintf("assets/icons/%s%s", packageName, ext)
 		if exist := Exists(filePath); exist {
-			return fmt.Sprintf("file://%s", filePath)
+			return fmt.Sprintf("file://%s", filePath), nil
 		}
 	}
 
-	return ""
+	return "", fmt.Errorf("no icon found for package %q", packageName)
 }
 
 // OverrideIconValues will change the metade icon URL to a local icon path for the index.yaml

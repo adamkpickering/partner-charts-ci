@@ -617,6 +617,231 @@ func initializeChart(packagePath string, sourceMetadata fetcher.ChartSourceMetad
 	return helmChart, nil
 }
 
+func ApplyUpdates(packageWrapper PackageWrapper, writeChart bool) error {
+	logrus.Debugf("Conforming package from %s\n", packageWrapper.Path)
+
+	existingCharts, err := loadExistingCharts(packageWrapper.ParsedVendor, packageWrapper.Name)
+	if err != nil {
+		return fmt.Errorf("failed to load existing charts: %w", err)
+	}
+
+	// for new charts, convert repo.ChartVersions to *chart.Chart
+	newCharts := make([]*chart.Chart, 0, len(packageWrapper.FetchVersions))
+	for _, chartVersion := range packageWrapper.FetchVersions {
+		var newChart *chart.Chart
+		var err error
+		if packageWrapper.SourceMetadata.Source == "Git" {
+			newChart, err = fetcher.LoadChartFromGit(chartVersion.URLs[0], packageWrapper.SourceMetadata.SubDirectory, packageWrapper.SourceMetadata.Commit)
+		} else {
+			newChart, err = fetcher.LoadChartFromUrl(chartVersion.URLs[0])
+		}
+		if err != nil {
+			return fmt.Errorf("failed to fetch chart: %w", err)
+		}
+		newChart.Metadata.Version = chartVersion.Version
+		newCharts = append(newCharts, newChart)
+	}
+
+	modifiedCharts, err := integrateCharts(packageWrapper, existingCharts, newCharts)
+	if err != nil {
+		return fmt.Errorf("failed to reconcile charts for package %q: %w", packageWrapper.Name, err)
+	}
+
+	if !writeChart {
+		return nil
+	}
+	for _, modifiedChart := range modifiedCharts {
+		// TODO actually write charts here
+		fmt.Println(modifiedChart)
+	}
+
+	return nil
+}
+
+func loadExistingCharts(vendor string, packageName string) ([]*chart.Chart, error) {
+	assetsPath := filepath.Join(getRepoRoot(), repositoryAssetsDir, vendor)
+	tgzFiles, err := os.ReadDir(assetsPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read dir %q: %w", assetsPath, err)
+	}
+	existingCharts := make([]*chart.Chart, 0, len(tgzFiles))
+	for _, tgzFile := range tgzFiles {
+		if tgzFile.IsDir() {
+			continue
+		}
+		matchName := filepath.Base(tgzFile.Name())
+		if matched, err := filepath.Match(fmt.Sprintf("%s-*.tgz", packageName), matchName); err != nil {
+			return nil, fmt.Errorf("failed to check match for %q: %w", matchName, err)
+		} else if !matched {
+			continue
+		}
+		existingChart, err := loader.LoadFile(tgzFile.Name())
+		if err != nil {
+			return nil, fmt.Errorf("failed to load chart %q: %w", tgzFile.Name(), err)
+		}
+		existingCharts = append(existingCharts, existingChart)
+	}
+	return existingCharts, nil
+}
+
+// integrateCharts integrates new charts from upstream with any
+// existing charts. It applies modifications to the new charts, and
+// ensures that the state of all charts, both current and new, is
+// correct. Should never modify an existing chart, except for in
+// the special case of the "featured" annotation. Returns a slice
+// containing charts that have been modified.
+func integrateCharts(packageWrapper PackageWrapper, existingCharts, newCharts []*chart.Chart) ([]*chart.Chart, error) {
+	modifiedCharts := make([]*chart.Chart, 0, len(existingCharts)+len(newCharts))
+	modifiedCharts = append(modifiedCharts, newCharts...)
+
+	for _, newChart := range newCharts {
+		// TODO: add overlay files as in initializeCharts
+		if err := addAnnotations(packageWrapper, newChart); err != nil {
+			return nil, fmt.Errorf("failed to add annotations to chart %q version %q: %w", newChart.Name(), newChart.Metadata.Version, err)
+		}
+		if err := ensureIcon(packageWrapper, newChart); err != nil {
+			return nil, fmt.Errorf("failed to ensure icon for chart %q version %q: %w", newChart.Name(), newChart.Metadata.Version, err)
+		}
+	}
+
+	modifiedChartsFromFeatured, err := ensureFeaturedAnnotation(existingCharts, newCharts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to ensure featured annotation: %w", err)
+	}
+	modifiedCharts = append(modifiedCharts, modifiedChartsFromFeatured...)
+
+	return modifiedCharts, nil
+}
+
+// Ensures that an icon for the chart has been downloaded to the local icons
+// directory, and that the icon URL field for helmChart refers to this local
+// icon file. We do this so that airgap installations of Rancher have access
+// to icons without needing to download them from a remote source.
+func ensureIcon(packageWrapper PackageWrapper, helmChart *chart.Chart) error {
+	if localIconUrl, err := icons.GetDownloadedIconPath(packageWrapper.Name); err == nil {
+		helmChart.Metadata.Icon = localIconUrl
+		return nil
+	}
+
+	localIconPath, err := icons.DownloadIcon(helmChart.Metadata.Icon, packageWrapper.Name)
+	if err != nil {
+		return fmt.Errorf("failed to download icon: %w", err)
+	}
+
+	helmChart.Metadata.Icon = "file://" + localIconPath
+	return nil
+}
+
+// Sets annotations on helmChart according to values from packageWrapper,
+// and especially from packageWrapper.UpstreamYaml.
+func addAnnotations(packageWrapper PackageWrapper, helmChart *chart.Chart) error {
+	annotations := make(map[string]string)
+
+	if autoInstall := packageWrapper.UpstreamYaml.AutoInstall; autoInstall != "" {
+		annotations[annotationAutoInstall] = autoInstall
+	}
+
+	if packageWrapper.UpstreamYaml.Experimental {
+		annotations[annotationExperimental] = "true"
+	}
+
+	if packageWrapper.UpstreamYaml.Hidden {
+		annotations[annotationHidden] = "true"
+	}
+
+	if !packageWrapper.UpstreamYaml.RemoteDependencies {
+		for _, d := range helmChart.Metadata.Dependencies {
+			d.Repository = fmt.Sprintf("file://./charts/%s", d.Name)
+		}
+	}
+
+	annotations[annotationCertified] = "partner"
+
+	annotations[annotationDisplayName] = packageWrapper.DisplayName
+
+	if packageWrapper.UpstreamYaml.ReleaseName != "" {
+		annotations[annotationReleaseName] = packageWrapper.UpstreamYaml.ReleaseName
+	} else {
+		annotations[annotationReleaseName] = packageWrapper.Name
+	}
+
+	conform.OverlayChartMetadata(helmChart, packageWrapper.UpstreamYaml.ChartYaml)
+
+	if packageWrapper.UpstreamYaml.Namespace != "" {
+		annotations[annotationNamespace] = packageWrapper.UpstreamYaml.Namespace
+	}
+	if helmChart.Metadata.KubeVersion != "" && packageWrapper.UpstreamYaml.ChartYaml.KubeVersion != "" {
+		annotations[annotationKubeVersion] = packageWrapper.UpstreamYaml.ChartYaml.KubeVersion
+		helmChart.Metadata.KubeVersion = packageWrapper.UpstreamYaml.ChartYaml.KubeVersion
+	} else if helmChart.Metadata.KubeVersion != "" {
+		annotations[annotationKubeVersion] = helmChart.Metadata.KubeVersion
+	} else if packageWrapper.UpstreamYaml.ChartYaml.KubeVersion != "" {
+		annotations[annotationKubeVersion] = packageWrapper.UpstreamYaml.ChartYaml.KubeVersion
+	}
+
+	if packageVersion := packageWrapper.UpstreamYaml.PackageVersion; packageVersion != 0 {
+		generatedVersion, err := conform.GeneratePackageVersion(helmChart.Metadata.Version, &packageVersion, "")
+		helmChart.Metadata.Version = generatedVersion
+		if err != nil {
+			return fmt.Errorf("failed to generate version: %w", err)
+		}
+	}
+
+	conform.ApplyChartAnnotations(helmChart, annotations, false)
+
+	return nil
+}
+
+// Ensures that "featured" annotation is set properly for the set of all passed
+// charts. Is separate from setting other annotations because only the latest
+// chart version for a given package must have the "featured" annotation, so
+// this function must consider and possibly modify all of the package's chart
+// versions. Returns a slice of modified charts.
+func ensureFeaturedAnnotation(existingCharts, newCharts []*chart.Chart) ([]*chart.Chart, error) {
+	modifiedCharts := make([]*chart.Chart, 0, len(existingCharts)+len(newCharts))
+
+	// get current value of featured annotation
+	featuredAnnotationValue := ""
+	for _, existingChart := range existingCharts {
+		val, ok := existingChart.Metadata.Annotations[annotationFeatured]
+		if !ok {
+			continue
+		}
+		if featuredAnnotationValue != "" && featuredAnnotationValue != val {
+			return nil, fmt.Errorf("found two different values for featured annotation %q and %q", featuredAnnotationValue, val)
+		}
+	}
+	if featuredAnnotationValue == "" {
+		// the chart is not featured
+		return nil, nil
+	}
+
+	// set featured annotation on last of new charts
+	// TODO: This replicates a bug in the existing code. Whichever ChartVersion
+	// comes last in the ChartVersions that conformPackage is working on has
+	// the featured annotation applies. This could easily give the wrong result, which
+	// presumably is for only the latest chart version to have the "featured"
+	// annotation.
+	// But in practice this is not a problem: as of the time of writing, only
+	// one chart (kasten/k10) uses a value for UpstreamYaml.Fetch other than the
+	// default value of "latest", and that chart is not featured.
+	lastNewChart := newCharts[len(newCharts)-1]
+	if conform.AnnotateChart(lastNewChart, annotationFeatured, featuredAnnotationValue, true) {
+		modifiedCharts = append(modifiedCharts, lastNewChart)
+	}
+
+	// Ensure featured annotation is not present on existing charts. We don't
+	// need to worry about other new charts because they will not have the
+	// featured annotation.
+	for _, existingChart := range existingCharts {
+		if conform.DeannotateChart(existingChart, annotationFeatured, "") {
+			modifiedCharts = append(modifiedCharts, existingChart)
+		}
+	}
+
+	return modifiedCharts, nil
+}
+
 // Mutates chart with necessary alterations for repository. Only writes
 // the chart to disk if writeChart is true.
 func conformPackage(packageWrapper PackageWrapper, writeChart bool) error {
@@ -1029,9 +1254,9 @@ func parsePackageListToPackageIconList(packageList PackageList) icons.PackageIco
 	for _, pkg := range packageList {
 
 		// check conditions for icon override and avoid panics
-		iconURL := icons.CheckForDownloadedIcon(pkg.Name)
-		if iconURL == "" {
-			logrus.Errorf("Override conditions not met for icon: %s, at path: %s", iconURL, pkg.Path)
+		iconURL, err := icons.GetDownloadedIconPath(pkg.Name)
+		if err != nil {
+			logrus.Errorf("failed to get downloaded icon path: %s", err)
 			continue
 		}
 

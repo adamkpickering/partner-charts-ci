@@ -10,6 +10,39 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// DownloadIcon downloads the icon at iconUrl to the icon file path
+// for package packageName. If a file already exists at this path, it
+// is overwritten. Returns the path.
+func DownloadIcon(iconUrl, packageName string) (string, error) {
+	resp, err := http.Get(iconUrl)
+	if err != nil {
+		return "", fmt.Errorf("failed to http get %q: %w", iconUrl, err)
+	}
+	defer resp.Body.Close()
+
+	ext := filepath.Ext(iconUrl)
+	if ext == "" {
+		ext = detectMIMEType(resp.Body)
+		if ext == "" {
+			return "", fmt.Errorf("failed to get file extension: %w", err)
+		}
+	}
+
+	localIconPath := filepath.Join("assets", "icons", packageName+ext)
+	destFile, err := os.Create(localIconPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create local icon file %q: %w", localIconPath, err)
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to copy response to dest file: %w", err)
+	}
+
+	return localIconPath, nil
+}
+
 // DownloadFiles will download all available icons from chart in index.yaml at assets/icons and return the successfully downloaded files.
 // If the file is already downloaded, it will skip the download process but still save the PackageIcon to the map so it can be overridden later
 func DownloadFiles(entriesPathsAndIconsMap PackageIconMap) PackageIconMap {
