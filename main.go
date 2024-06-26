@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -150,6 +151,36 @@ func (packageWrapper *PackageWrapper) populate(onlyLatest bool) (bool, error) {
 	}
 
 	return true, nil
+}
+
+// GetOverlayFiles returns the package's overlay files as a map where
+// the keys are the path to the file (relative to the repo root) and
+// the values are the contents of the file.
+func (pw PackageWrapper) GetOverlayFiles() (map[string][]byte, error) {
+	overlayFiles := map[string][]byte{}
+	overlayDir := filepath.Join(pw.Path, "overlay")
+	err := filepath.WalkDir(overlayDir, func(path string, dirEntry fs.DirEntry, err error) error {
+		if err != nil {
+			return fmt.Errorf("error related to %q: %w", path, err)
+		}
+		if dirEntry.IsDir() {
+			return nil
+		}
+		contents, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("failed to read %q: %w", path, err)
+		}
+		relativePath, err := filepath.Rel(overlayDir, path)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path: %w", err)
+		}
+		overlayFiles[relativePath] = contents
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to walk files: %w", err)
+	}
+	return overlayFiles, nil
 }
 
 func annotate(vendor, chartName, annotation, value string, remove, onlyLatest bool) error {
