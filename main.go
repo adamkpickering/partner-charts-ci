@@ -725,8 +725,15 @@ func integrateCharts(packageWrapper PackageWrapper, existingCharts, newCharts []
 	modifiedCharts := make([]*chart.Chart, 0, len(existingCharts)+len(newCharts))
 	modifiedCharts = append(modifiedCharts, newCharts...)
 
+	overlayFiles, err := packageWrapper.GetOverlayFiles()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get overlay files: %w", err)
+	}
+
 	for _, newChart := range newCharts {
-		// TODO: add overlay files as in initializeCharts
+		if err := applyOverlayFiles(overlayFiles, newChart); err != nil {
+			return nil, fmt.Errorf("failed to apply overlay files to chart %q version %q: %w", newChart.Name(), newChart.Metadata.Version, err)
+		}
 		if err := addAnnotations(packageWrapper, newChart); err != nil {
 			return nil, fmt.Errorf("failed to add annotations to chart %q version %q: %w", newChart.Name(), newChart.Metadata.Version, err)
 		}
@@ -742,6 +749,26 @@ func integrateCharts(packageWrapper PackageWrapper, existingCharts, newCharts []
 	modifiedCharts = append(modifiedCharts, modifiedChartsFromFeatured...)
 
 	return modifiedCharts, nil
+}
+
+// applyOverlayFiles applies the files referenced in overlayFiles to the files
+// in helmChart.Files. If a file already exists, it is overwritten.
+func applyOverlayFiles(overlayFiles map[string][]byte, helmChart *chart.Chart) error {
+	for relativePath, contents := range overlayFiles {
+		newFile := &chart.File{
+			Name: relativePath,
+			Data: contents,
+		}
+		for _, file := range helmChart.Files {
+			if file.Name == relativePath {
+				file.Data = contents
+				goto skip
+			}
+		}
+		helmChart.Files = append(helmChart.Files, newFile)
+	skip:
+	}
+	return nil
 }
 
 // Ensures that an icon for the chart has been downloaded to the local icons

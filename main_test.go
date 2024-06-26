@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"helm.sh/helm/v3/pkg/chart"
 )
 
 func TestMain(t *testing.T) {
@@ -30,6 +32,55 @@ func TestMain(t *testing.T) {
 				}
 				assert.Equal(t, len(expectedOverlayFiles), len(actualOverlayFiles))
 			})
+		})
+	})
+
+	t.Run("applyOverlayFiles", func(t *testing.T) {
+		t.Run("should add files that do not already exist", func(t *testing.T) {
+			filename := "file1.txt"
+			overlayFiles := map[string][]byte{
+				filename: []byte("this is file 1"),
+			}
+			helmChart := &chart.Chart{}
+			if err := applyOverlayFiles(overlayFiles, helmChart); err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			found := false
+			for _, file := range helmChart.Files {
+				if file.Name == filename {
+					found = true
+					assert.Equal(t, overlayFiles[filename], file.Data)
+				}
+			}
+			assert.True(t, found)
+		})
+
+		t.Run("should overwrite existing files", func(t *testing.T) {
+			filename := "file1.txt"
+			filedata := []byte("this is file 1")
+			overlayFiles := map[string][]byte{
+				filename: filedata,
+			}
+			helmChart := &chart.Chart{
+				Files: []*chart.File{
+					{
+						Name: filename,
+						Data: []byte("these are different contents"),
+					},
+				},
+			}
+			if err := applyOverlayFiles(overlayFiles, helmChart); err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			found := false
+			for _, file := range helmChart.Files {
+				if file.Name == filename {
+					found = true
+					assert.Equal(t, overlayFiles[filename], file.Data)
+				}
+			}
+			assert.True(t, found)
+			assert.Equal(t, 1, len(helmChart.Files))
 		})
 	})
 }
