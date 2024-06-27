@@ -163,10 +163,7 @@ func StripPackageVersion(chartVersion string) string {
 	return version.String()
 }
 
-func GeneratePackageVersion(upstreamChartVersion string, packageVersion *int, version string) (string, error) {
-	if version != "" {
-		return version, nil
-	}
+func GeneratePackageVersion(upstreamChartVersion string, packageVersion *int) (string, error) {
 	if packageVersion != nil {
 		chartVersion, err := semver.NewVersion(upstreamChartVersion)
 		if err != nil {
