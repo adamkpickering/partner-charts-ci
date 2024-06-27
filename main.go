@@ -807,6 +807,10 @@ func addAnnotations(packageWrapper PackageWrapper, helmChart *chart.Chart) error
 		annotations[annotationHidden] = "true"
 	}
 
+	// TODO: this is sketchy. We end up changing the repository URL of each
+	// dependency without downloading dependencies. This can't be right.
+	// And if it is, this needs a comment explaining what is going on.
+	// Need to investigate further.
 	if !packageWrapper.UpstreamYaml.RemoteDependencies {
 		for _, d := range helmChart.Metadata.Dependencies {
 			d.Repository = fmt.Sprintf("file://./charts/%s", d.Name)
@@ -828,13 +832,12 @@ func addAnnotations(packageWrapper PackageWrapper, helmChart *chart.Chart) error
 	if packageWrapper.UpstreamYaml.Namespace != "" {
 		annotations[annotationNamespace] = packageWrapper.UpstreamYaml.Namespace
 	}
-	if helmChart.Metadata.KubeVersion != "" && packageWrapper.UpstreamYaml.ChartYaml.KubeVersion != "" {
+
+	if packageWrapper.UpstreamYaml.ChartYaml.KubeVersion != "" {
 		annotations[annotationKubeVersion] = packageWrapper.UpstreamYaml.ChartYaml.KubeVersion
 		helmChart.Metadata.KubeVersion = packageWrapper.UpstreamYaml.ChartYaml.KubeVersion
 	} else if helmChart.Metadata.KubeVersion != "" {
 		annotations[annotationKubeVersion] = helmChart.Metadata.KubeVersion
-	} else if packageWrapper.UpstreamYaml.ChartYaml.KubeVersion != "" {
-		annotations[annotationKubeVersion] = packageWrapper.UpstreamYaml.ChartYaml.KubeVersion
 	}
 
 	if packageVersion := packageWrapper.UpstreamYaml.PackageVersion; packageVersion != 0 {
