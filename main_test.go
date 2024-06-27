@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/rancher/partner-charts-ci/pkg/parse"
 	"github.com/stretchr/testify/assert"
 
 	"helm.sh/helm/v3/pkg/chart"
@@ -81,6 +82,233 @@ func TestMain(t *testing.T) {
 			}
 			assert.True(t, found)
 			assert.Equal(t, 1, len(helmChart.Files))
+		})
+	})
+
+	t.Run("addAnnotations", func(t *testing.T) {
+		t.Run("should set auto-install annotation properly", func(t *testing.T) {
+			for _, autoInstall := range []string{"", "some-chart"} {
+				packageWrapper := PackageWrapper{
+					UpstreamYaml: &parse.UpstreamYaml{
+						AutoInstall: autoInstall,
+					},
+				}
+				helmChart := &chart.Chart{
+					Metadata: &chart.Metadata{
+						Dependencies: []*chart.Dependency{},
+					},
+				}
+				if err := addAnnotations(packageWrapper, helmChart); err != nil {
+					t.Fatalf("unexpected error: %s", err)
+				}
+				value, ok := helmChart.Metadata.Annotations[annotationAutoInstall]
+				assert.Equal(t, autoInstall != "", ok)
+				if autoInstall != "" {
+					assert.Equal(t, autoInstall, value)
+				}
+			}
+		})
+
+		t.Run("should set experimental annotation properly", func(t *testing.T) {
+			for _, experimental := range []bool{false, true} {
+				packageWrapper := PackageWrapper{
+					UpstreamYaml: &parse.UpstreamYaml{
+						Experimental: experimental,
+					},
+				}
+				helmChart := &chart.Chart{
+					Metadata: &chart.Metadata{
+						Dependencies: []*chart.Dependency{},
+					},
+				}
+				if err := addAnnotations(packageWrapper, helmChart); err != nil {
+					t.Fatalf("unexpected error: %s", err)
+				}
+				value, ok := helmChart.Metadata.Annotations[annotationExperimental]
+				assert.Equal(t, experimental, ok)
+				if experimental {
+					assert.Equal(t, "true", value)
+				}
+			}
+		})
+
+		t.Run("should set hidden annotation properly", func(t *testing.T) {
+			for _, hidden := range []bool{false, true} {
+				packageWrapper := PackageWrapper{
+					UpstreamYaml: &parse.UpstreamYaml{
+						Hidden: hidden,
+					},
+				}
+				helmChart := &chart.Chart{
+					Metadata: &chart.Metadata{
+						Dependencies: []*chart.Dependency{},
+					},
+				}
+				if err := addAnnotations(packageWrapper, helmChart); err != nil {
+					t.Fatalf("unexpected error: %s", err)
+				}
+				value, ok := helmChart.Metadata.Annotations[annotationHidden]
+				assert.Equal(t, hidden, ok)
+				if hidden {
+					assert.Equal(t, "true", value)
+				}
+			}
+		})
+
+		t.Run("should always set certified annotation", func(t *testing.T) {
+			packageWrapper := PackageWrapper{
+				UpstreamYaml: &parse.UpstreamYaml{},
+			}
+			helmChart := &chart.Chart{
+				Metadata: &chart.Metadata{
+					Dependencies: []*chart.Dependency{},
+				},
+			}
+			if err := addAnnotations(packageWrapper, helmChart); err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			value, ok := helmChart.Metadata.Annotations[annotationCertified]
+			assert.True(t, ok)
+			assert.Equal(t, "partner", value)
+		})
+
+		t.Run("should always set display-name annotation", func(t *testing.T) {
+			displayName := "Display Name"
+			packageWrapper := PackageWrapper{
+				DisplayName:  displayName,
+				UpstreamYaml: &parse.UpstreamYaml{},
+			}
+			helmChart := &chart.Chart{
+				Metadata: &chart.Metadata{
+					Dependencies: []*chart.Dependency{},
+				},
+			}
+			if err := addAnnotations(packageWrapper, helmChart); err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			value, ok := helmChart.Metadata.Annotations[annotationDisplayName]
+			assert.True(t, ok)
+			assert.Equal(t, displayName, value)
+		})
+
+		t.Run("should set release-name annotation properly", func(t *testing.T) {
+			testCases := []struct {
+				PackageWrapperName       string
+				UpstreamYamlName         string
+				ShouldBeUpstreamYamlName bool
+			}{
+				{
+					PackageWrapperName:       "packageWrapperName",
+					UpstreamYamlName:         "upstreamYamlName",
+					ShouldBeUpstreamYamlName: true,
+				},
+				{
+					PackageWrapperName:       "packageWrapperName",
+					UpstreamYamlName:         "",
+					ShouldBeUpstreamYamlName: false,
+				},
+			}
+			for _, testCase := range testCases {
+				packageWrapper := PackageWrapper{
+					Name: testCase.PackageWrapperName,
+					UpstreamYaml: &parse.UpstreamYaml{
+						ReleaseName: testCase.UpstreamYamlName,
+					},
+				}
+				helmChart := &chart.Chart{
+					Metadata: &chart.Metadata{
+						Dependencies: []*chart.Dependency{},
+					},
+				}
+				if err := addAnnotations(packageWrapper, helmChart); err != nil {
+					t.Fatalf("unexpected error: %s", err)
+				}
+				value, ok := helmChart.Metadata.Annotations[annotationReleaseName]
+				assert.True(t, ok)
+				if testCase.ShouldBeUpstreamYamlName {
+					assert.Equal(t, testCase.UpstreamYamlName, value)
+				} else {
+					assert.Equal(t, testCase.PackageWrapperName, value)
+				}
+			}
+		})
+
+		t.Run("should set namespace annotation properly", func(t *testing.T) {
+			for _, namespace := range []string{"", "test-namespace"} {
+				packageWrapper := PackageWrapper{
+					UpstreamYaml: &parse.UpstreamYaml{
+						Namespace: namespace,
+					},
+				}
+				helmChart := &chart.Chart{
+					Metadata: &chart.Metadata{
+						Dependencies: []*chart.Dependency{},
+					},
+				}
+				if err := addAnnotations(packageWrapper, helmChart); err != nil {
+					t.Fatalf("unexpected error: %s", err)
+				}
+				value, ok := helmChart.Metadata.Annotations[annotationNamespace]
+				assert.Equal(t, namespace != "", ok)
+				if namespace != "" {
+					assert.Equal(t, namespace, value)
+				}
+			}
+		})
+
+		t.Run("should set kube-version annotation properly", func(t *testing.T) {
+			testCases := []struct {
+				CurrentKubeVersion      string
+				UpstreamYamlKubeVersion string
+				ExpectedValue           string
+			}{
+				{
+					CurrentKubeVersion:      "currentKubeVersion",
+					UpstreamYamlKubeVersion: "upstreamYamlKubeVersion",
+					ExpectedValue:           "upstreamYamlKubeVersion",
+				},
+				{
+					CurrentKubeVersion:      "",
+					UpstreamYamlKubeVersion: "upstreamYamlKubeVersion",
+					ExpectedValue:           "upstreamYamlKubeVersion",
+				},
+				{
+					CurrentKubeVersion:      "currentKubeVersion",
+					UpstreamYamlKubeVersion: "",
+					ExpectedValue:           "currentKubeVersion",
+				},
+				{
+					CurrentKubeVersion:      "",
+					UpstreamYamlKubeVersion: "",
+					ExpectedValue:           "",
+				},
+			}
+			for _, testCase := range testCases {
+				packageWrapper := PackageWrapper{
+					UpstreamYaml: &parse.UpstreamYaml{
+						ChartYaml: chart.Metadata{
+							KubeVersion: testCase.UpstreamYamlKubeVersion,
+						},
+					},
+				}
+				helmChart := &chart.Chart{
+					Metadata: &chart.Metadata{
+						KubeVersion:  testCase.CurrentKubeVersion,
+						Dependencies: []*chart.Dependency{},
+					},
+				}
+				if err := addAnnotations(packageWrapper, helmChart); err != nil {
+					t.Fatalf("unexpected error: %s", err)
+				}
+				value, ok := helmChart.Metadata.Annotations[annotationKubeVersion]
+				if testCase.ExpectedValue == "" {
+					assert.False(t, ok)
+					continue
+				}
+				assert.True(t, ok)
+				assert.Equal(t, testCase.ExpectedValue, value)
+				assert.Equal(t, testCase.ExpectedValue, helmChart.Metadata.KubeVersion)
+			}
 		})
 	})
 }

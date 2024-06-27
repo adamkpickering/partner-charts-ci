@@ -174,6 +174,10 @@ func GeneratePackageVersion(upstreamChartVersion string, packageVersion *int) (s
 			return "", fmt.Errorf("package version %d is greater than maximum of %d", *packageVersion, MaxPatchNum)
 		}
 
+		// TODO: when chartVersion.Patch() == 0, then we get a patch version of 1,
+		// assuming PatchVersion is set to 1 in the upstream.yaml (which it is for
+		// all packages that set PatchVersion at the time of writing). I don't
+		// think this is the intent of the function, so this behavior should be fixed.
 		patchVersion := PatchNumMultiplier*chartVersion.Patch() + uint64(*packageVersion)
 
 		split := strings.Split(chartVersion.String(), ".")
