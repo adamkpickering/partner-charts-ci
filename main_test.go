@@ -307,7 +307,6 @@ func TestMain(t *testing.T) {
 				}
 				assert.True(t, ok)
 				assert.Equal(t, testCase.ExpectedValue, value)
-				assert.Equal(t, testCase.ExpectedValue, helmChart.Metadata.KubeVersion)
 			}
 		})
 	})

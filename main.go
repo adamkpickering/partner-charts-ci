@@ -834,7 +834,6 @@ func addAnnotations(packageWrapper PackageWrapper, helmChart *chart.Chart) error
 
 	if packageWrapper.UpstreamYaml.ChartYaml.KubeVersion != "" {
 		annotations[annotationKubeVersion] = packageWrapper.UpstreamYaml.ChartYaml.KubeVersion
-		helmChart.Metadata.KubeVersion = packageWrapper.UpstreamYaml.ChartYaml.KubeVersion
 	} else if helmChart.Metadata.KubeVersion != "" {
 		annotations[annotationKubeVersion] = helmChart.Metadata.KubeVersion
 	}
