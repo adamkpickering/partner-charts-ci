@@ -673,17 +673,41 @@ func ApplyUpdates(packageWrapper PackageWrapper, writeChart bool) error {
 		newCharts = append(newCharts, newChart)
 	}
 
-	modifiedCharts, err := integrateCharts(packageWrapper, existingCharts, newCharts)
-	if err != nil {
+	if err := integrateCharts(packageWrapper, existingCharts, newCharts); err != nil {
 		return fmt.Errorf("failed to reconcile charts for package %q: %w", packageWrapper.Name, err)
 	}
 
 	if !writeChart {
 		return nil
 	}
-	for _, modifiedChart := range modifiedCharts {
-		// TODO actually write charts here
-		fmt.Println(modifiedChart)
+
+	allCharts := make([]*chart.Chart, 0, len(existingCharts)+len(newCharts))
+	allCharts = append(allCharts, existingCharts...)
+	allCharts = append(allCharts, newCharts...)
+	if err := writeCharts(packageWrapper, allCharts); err != nil {
+		return fmt.Errorf("failed to write charts: %w", err)
+	}
+
+	return nil
+}
+
+func writeCharts(packageWrapper PackageWrapper, allCharts []*chart.Chart) error {
+	chartsDir := filepath.Join(getRepoRoot(), repositoryChartsDir, packageWrapper.ParsedVendor, packageWrapper.Name)
+	assetsDir := filepath.Join(getRepoRoot(), repositoryAssetsDir, packageWrapper.ParsedVendor)
+
+	if err := os.RemoveAll(chartsDir); err != nil {
+		return fmt.Errorf("failed to wipe existing charts directory: %w", err)
+	}
+
+	for _, thisChart := range allCharts {
+		assetsPath, err := chartutil.Save(thisChart, assetsDir)
+		if err != nil {
+			return fmt.Errorf("failed to write tgz for %q version %q: %w", thisChart.Name(), thisChart.Metadata.Version, err)
+		}
+		chartsPath := filepath.Join(chartsDir, thisChart.Metadata.Version)
+		if err := conform.Gunzip(assetsPath, chartsPath); err != nil {
+			return fmt.Errorf("failed to unpack %q version %q to %q: %w", thisChart.Name(), thisChart.Metadata.Version, chartsPath, err)
+		}
 	}
 
 	return nil
@@ -719,37 +743,31 @@ func loadExistingCharts(vendor string, packageName string) ([]*chart.Chart, erro
 // existing charts. It applies modifications to the new charts, and
 // ensures that the state of all charts, both current and new, is
 // correct. Should never modify an existing chart, except for in
-// the special case of the "featured" annotation. Returns a slice
-// containing charts that have been modified.
-func integrateCharts(packageWrapper PackageWrapper, existingCharts, newCharts []*chart.Chart) ([]*chart.Chart, error) {
-	modifiedCharts := make([]*chart.Chart, 0, len(existingCharts)+len(newCharts))
-	modifiedCharts = append(modifiedCharts, newCharts...)
-
+// the special case of the "featured" annotation.
+func integrateCharts(packageWrapper PackageWrapper, existingCharts, newCharts []*chart.Chart) error {
 	overlayFiles, err := packageWrapper.GetOverlayFiles()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get overlay files: %w", err)
+		return fmt.Errorf("failed to get overlay files: %w", err)
 	}
 
 	for _, newChart := range newCharts {
 		if err := applyOverlayFiles(overlayFiles, newChart); err != nil {
-			return nil, fmt.Errorf("failed to apply overlay files to chart %q version %q: %w", newChart.Name(), newChart.Metadata.Version, err)
+			return fmt.Errorf("failed to apply overlay files to chart %q version %q: %w", newChart.Name(), newChart.Metadata.Version, err)
 		}
 		conform.OverlayChartMetadata(newChart, packageWrapper.UpstreamYaml.ChartYaml)
 		if err := addAnnotations(packageWrapper, newChart); err != nil {
-			return nil, fmt.Errorf("failed to add annotations to chart %q version %q: %w", newChart.Name(), newChart.Metadata.Version, err)
+			return fmt.Errorf("failed to add annotations to chart %q version %q: %w", newChart.Name(), newChart.Metadata.Version, err)
 		}
 		if err := ensureIcon(packageWrapper, newChart); err != nil {
-			return nil, fmt.Errorf("failed to ensure icon for chart %q version %q: %w", newChart.Name(), newChart.Metadata.Version, err)
+			return fmt.Errorf("failed to ensure icon for chart %q version %q: %w", newChart.Name(), newChart.Metadata.Version, err)
 		}
 	}
 
-	modifiedChartsFromFeatured, err := ensureFeaturedAnnotation(existingCharts, newCharts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to ensure featured annotation: %w", err)
+	if _, err := ensureFeaturedAnnotation(existingCharts, newCharts); err != nil {
+		return fmt.Errorf("failed to ensure featured annotation: %w", err)
 	}
-	modifiedCharts = append(modifiedCharts, modifiedChartsFromFeatured...)
 
-	return modifiedCharts, nil
+	return nil
 }
 
 // applyOverlayFiles applies the files referenced in overlayFiles to the files
@@ -1027,6 +1045,10 @@ func saveChart(helmChart *chart.Chart, assetsPath, chartsPath string) error {
 		logrus.Error(err)
 	}
 
+	// TODO: calling conform.ExportChartDirectory appears to do the
+	// exact same thing as calling conform.Gunzip above: it places the
+	// chart files into a directory. This should be removed as soon as
+	// we can verify that there is not a reason for this.
 	logrus.Debugf("Exporting chart to %s\n", chartsPath)
 	err = conform.ExportChartDirectory(helmChart, chartsPath)
 	if err != nil {
