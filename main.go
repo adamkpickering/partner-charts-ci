@@ -734,6 +734,7 @@ func integrateCharts(packageWrapper PackageWrapper, existingCharts, newCharts []
 		if err := applyOverlayFiles(overlayFiles, newChart); err != nil {
 			return nil, fmt.Errorf("failed to apply overlay files to chart %q version %q: %w", newChart.Name(), newChart.Metadata.Version, err)
 		}
+		conform.OverlayChartMetadata(newChart, packageWrapper.UpstreamYaml.ChartYaml)
 		if err := addAnnotations(packageWrapper, newChart); err != nil {
 			return nil, fmt.Errorf("failed to add annotations to chart %q version %q: %w", newChart.Name(), newChart.Metadata.Version, err)
 		}
@@ -826,8 +827,6 @@ func addAnnotations(packageWrapper PackageWrapper, helmChart *chart.Chart) error
 	} else {
 		annotations[annotationReleaseName] = packageWrapper.Name
 	}
-
-	conform.OverlayChartMetadata(helmChart, packageWrapper.UpstreamYaml.ChartYaml)
 
 	if packageWrapper.UpstreamYaml.Namespace != "" {
 		annotations[annotationNamespace] = packageWrapper.UpstreamYaml.Namespace
