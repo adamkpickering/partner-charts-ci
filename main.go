@@ -870,10 +870,11 @@ func ensureFeaturedAnnotation(existingCharts, newCharts []*chart.Chart) ([]*char
 		if featuredAnnotationValue != "" && featuredAnnotationValue != val {
 			return nil, fmt.Errorf("found two different values for featured annotation %q and %q", featuredAnnotationValue, val)
 		}
+		featuredAnnotationValue = val
 	}
 	if featuredAnnotationValue == "" {
 		// the chart is not featured
-		return nil, nil
+		return modifiedCharts, nil
 	}
 
 	// set featured annotation on last of new charts

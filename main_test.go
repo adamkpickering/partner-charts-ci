@@ -311,4 +311,113 @@ func TestMain(t *testing.T) {
 			}
 		})
 	})
+
+	t.Run("ensureFeaturedAnnotation", func(t *testing.T) {
+		t.Run("should return nil, nil when featured annotation not present on existing charts", func(t *testing.T) {
+			existingCharts := []*chart.Chart{
+				{
+					Metadata: &chart.Metadata{
+						Name: "existingChart1",
+					},
+				},
+				{
+					Metadata: &chart.Metadata{
+						Name: "existingChart2",
+					},
+				},
+			}
+			newCharts := []*chart.Chart{
+				{
+					Metadata: &chart.Metadata{
+						Name: "newChart1",
+					},
+				},
+			}
+			modifiedCharts, err := ensureFeaturedAnnotation(existingCharts, newCharts)
+			assert.Equal(t, []*chart.Chart{}, modifiedCharts)
+			assert.Equal(t, nil, err)
+		})
+
+		t.Run("should return error when there are two featured annotations of differing values in existing charts", func(t *testing.T) {
+			existingCharts := []*chart.Chart{
+				{
+					Metadata: &chart.Metadata{
+						Name: "existingChart1",
+						Annotations: map[string]string{
+							annotationFeatured: "1",
+						},
+					},
+				},
+				{
+					Metadata: &chart.Metadata{
+						Name: "existingChart2",
+						Annotations: map[string]string{
+							annotationFeatured: "2",
+						},
+					},
+				},
+			}
+			newCharts := []*chart.Chart{
+				{
+					Metadata: &chart.Metadata{
+						Name: "newChart1",
+					},
+				},
+			}
+			_, err := ensureFeaturedAnnotation(existingCharts, newCharts)
+			assert.NotNil(t, err)
+			assert.Contains(t, err.Error(), "found two different values for featured annotation")
+		})
+
+		t.Run("should modify charts correctly and return modified charts", func(t *testing.T) {
+			featuredAnnotationValue := "2"
+			existingCharts := []*chart.Chart{
+				{
+					Metadata: &chart.Metadata{
+						Name: "existingChart1",
+					},
+				},
+				{
+					Metadata: &chart.Metadata{
+						Name: "existingChart2",
+						Annotations: map[string]string{
+							annotationFeatured: featuredAnnotationValue,
+						},
+					},
+				},
+			}
+			newCharts := []*chart.Chart{
+				{
+					Metadata: &chart.Metadata{
+						Name: "newChart1",
+					},
+				},
+				{
+					Metadata: &chart.Metadata{
+						Name: "newChart2",
+					},
+				},
+			}
+			modifiedCharts, err := ensureFeaturedAnnotation(existingCharts, newCharts)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			for _, existingChart := range existingCharts {
+				_, ok := existingChart.Metadata.Annotations[annotationFeatured]
+				assert.False(t, ok)
+			}
+			for _, newChart := range newCharts[0 : len(newCharts)-1] {
+				_, ok := newChart.Metadata.Annotations[annotationFeatured]
+				assert.False(t, ok)
+			}
+			val, ok := newCharts[len(newCharts)-1].Metadata.Annotations[annotationFeatured]
+			assert.True(t, ok)
+			assert.Equal(t, featuredAnnotationValue, val)
+			expectedModifiedCharts := []*chart.Chart{
+				newCharts[1],
+				existingCharts[1],
+			}
+			assert.Equal(t, expectedModifiedCharts, modifiedCharts)
+		})
+	})
 }
