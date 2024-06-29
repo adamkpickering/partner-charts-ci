@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -1180,16 +1181,11 @@ func readIndex() (*repo.IndexFile, error) {
 // Writes out modified index file
 func writeIndex() error {
 	indexFilePath := filepath.Join(getRepoRoot(), indexFile)
-	if _, err := os.Stat(indexFilePath); os.IsNotExist(err) {
-		err = repo.NewIndexFile().WriteFile(indexFilePath, 0644)
-		if err != nil {
-			return err
-		}
-	}
-
 	helmIndexYaml, err := repo.LoadIndexFile(indexFilePath)
-	if err != nil {
-		return err
+	if errors.Is(err, os.ErrNotExist) {
+		helmIndexYaml = repo.NewIndexFile()
+	} else if err != nil {
+		return fmt.Errorf("failed to load index.yaml: %w", err)
 	}
 
 	assetsDirectoryPath := filepath.Join(getRepoRoot(), repositoryAssetsDir)
@@ -1199,6 +1195,21 @@ func writeIndex() error {
 	}
 	helmIndexYaml.Merge(newHelmIndexYaml)
 	helmIndexYaml.SortEntries()
+
+	// Older chart versions cannot be changed, and may have remote (i.e.
+	// not beginning with file://) icon URLs. So, ensure all icon URLs are
+	// set to the local version. This works because Rancher uses the icon URL
+	// value from index.yaml, not the chart itself, when loading a chart's
+	// icon.
+	for _, entries := range helmIndexYaml.Entries {
+		for _, chartVersion := range entries {
+			iconURL, err := icons.GetDownloadedIconPath(chartVersion.Name)
+			if err != nil {
+				return fmt.Errorf("failed to get downloaded icon path: %w", err)
+			}
+			chartVersion.Icon = iconURL
+		}
+	}
 
 	err = helmIndexYaml.WriteFile(indexFilePath, 0644)
 	if err != nil {
