@@ -1401,6 +1401,76 @@ func cullCharts(c *cli.Context) error {
 	return nil
 }
 
+func fixCorruptedIcons(c *cli.Context) error {
+	problemPackages := []string{
+		"f5/f5-bigip-ctlr",
+		"inaccel/fpga-operator",
+		"intel/intel-device-plugins-operator",
+		"intel/intel-device-plugins-qat",
+		"intel/intel-device-plugins-sgx",
+		"nutanix/nutanix-csi-snapshot",
+		"nutanix/nutanix-csi-storage",
+		"sysdig/sysdig",
+		"intel/tcs-issuer",
+		"yugabyte/yugabyte",
+		"yugabyte/yugaware",
+	}
+
+	packageWrappers := make(PackageList, 0, len(problemPackages))
+	for _, problemPackage := range problemPackages {
+		packageList, err := listPackageWrappers(problemPackage)
+		if err != nil {
+			return fmt.Errorf("failed to list packages for %q: %w", problemPackage, err)
+		}
+		for _, p := range packageList {
+			p.UpstreamYaml.Fetch = "all"
+		}
+		packageWrappers = append(packageWrappers, packageList...)
+	}
+
+	for _, packageWrapper := range packageWrappers {
+		if err := fixIcons(packageWrapper); err != nil {
+			logrus.Errorf("failed to fix icons: %s", err)
+		}
+	}
+
+	return nil
+}
+func fixIcons(packageWrapper PackageWrapper) error {
+	iconPath, err := icons.GetDownloadedIconPath(packageWrapper.Name)
+	if err != nil {
+		return fmt.Errorf("failed to get icon path for %q: %w", packageWrapper.Name, err)
+	}
+	if err := os.RemoveAll(iconPath); err != nil {
+		return fmt.Errorf("failed to remove icon for %q: %w", packageWrapper.Name, err)
+	}
+	if _, err := packageWrapper.Populate(); err != nil {
+		return fmt.Errorf("failed to populate %q: %w", packageWrapper.Name, err)
+	}
+
+	fetchVersion := packageWrapper.FetchVersions[0]
+	latestChart := &chart.Chart{}
+	if packageWrapper.SourceMetadata.Source == "Git" {
+		latestChart, err = fetcher.LoadChartFromGit(fetchVersion.URLs[0], packageWrapper.SourceMetadata.SubDirectory, packageWrapper.SourceMetadata.Commit)
+	} else {
+		latestChart, err = fetcher.LoadChartFromUrl(fetchVersion.URLs[0])
+	}
+	if err != nil {
+		return fmt.Errorf("failed to fetch chart for %q: %w", packageWrapper.FullName(), err)
+	}
+	latestChart.Metadata.Version = fetchVersion.Version
+
+	// for _, fetchVersion := range packageWrapper.FetchVersions {
+	// 	fmt.Printf("icon url for %q: %s\n", packageWrapper.FullName(), fetchVersion.Icon)
+	// }
+	newIconPath, err := icons.EnsureIconDownloaded(latestChart.Metadata.Icon, packageWrapper.Name)
+	if err != nil {
+		return fmt.Errorf("failed to download icon for %q: %w", packageWrapper.FullName(), err)
+	}
+	fmt.Printf("Downloaded new icon at %s\n", newIconPath)
+	return nil
+}
+
 func main() {
 	if len(os.Getenv("DEBUG")) > 0 {
 		logrus.SetLevel(logrus.DebugLevel)
@@ -1473,6 +1543,11 @@ func main() {
 			Usage:     "Remove versions of chart older than a number of days",
 			Action:    cullCharts,
 			ArgsUsage: "<chart> <days>",
+		},
+		{
+			Name:   "fix-corrupted-icons",
+			Usage:  "Fix the corrupted icons",
+			Action: fixCorruptedIcons,
 		},
 	}
 
