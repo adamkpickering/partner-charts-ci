@@ -21,7 +21,7 @@ type Paths struct {
 
 func Get() Paths {
 	if paths == nil {
-		repoRoot := GetRepoRoot()
+		repoRoot := RepoRoot()
 		paths = &Paths{
 			Assets:            filepath.Join(repoRoot, "assets"),
 			Charts:            filepath.Join(repoRoot, "charts"),
@@ -34,7 +34,7 @@ func Get() Paths {
 }
 
 // Fetches absolute repository root path
-func GetRepoRoot() string {
+func RepoRoot() string {
 	repoRoot, err := os.Getwd()
 	if err != nil {
 		logrus.Fatal(err)
