@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/rancher/partner-charts-ci/pkg/parse"
+	"github.com/rancher/partner-charts-ci/pkg/paths"
 	"github.com/stretchr/testify/assert"
 
 	"helm.sh/helm/v3/pkg/chart"
@@ -455,8 +456,10 @@ func TestMain(t *testing.T) {
 		t.Run("should sort charts in descending chart version order", func(t *testing.T) {
 			vendor := "f5"
 			packageName := "nginx-ingress"
-			repoRoot := filepath.Join("testdata", "loadExistingCharts")
-			chartWrappers, err := loadExistingCharts(repoRoot, vendor, packageName)
+			repoPaths := paths.Paths{
+				Assets: filepath.Join("testdata", "loadExistingCharts", "assets"),
+			}
+			chartWrappers, err := loadExistingCharts(repoPaths, vendor, packageName)
 			if err != nil {
 				t.Fatalf("unexpected error: %s", err)
 			}

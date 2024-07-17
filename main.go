@@ -190,7 +190,7 @@ func (pw PackageWrapper) GetOverlayFiles() (map[string][]byte, error) {
 }
 
 func annotate(vendor, chartName, annotation, value string, remove, onlyLatest bool) error {
-	existingCharts, err := loadExistingCharts(paths.RepoRoot(), vendor, chartName)
+	existingCharts, err := loadExistingCharts(paths.Get(), vendor, chartName)
 	if err != nil {
 		return fmt.Errorf("failed to load existing charts: %w", err)
 	}
@@ -496,7 +496,7 @@ func filterVersions(upstreamVersions repo.ChartVersions, fetch string, tracked [
 func ApplyUpdates(packageWrapper PackageWrapper) error {
 	logrus.Debugf("Applying updates for package %s/%s\n", packageWrapper.ParsedVendor, packageWrapper.Name)
 
-	existingCharts, err := loadExistingCharts(paths.RepoRoot(), packageWrapper.ParsedVendor, packageWrapper.Name)
+	existingCharts, err := loadExistingCharts(paths.Get(), packageWrapper.ParsedVendor, packageWrapper.Name)
 	if err != nil {
 		return fmt.Errorf("failed to load existing charts: %w", err)
 	}
@@ -577,8 +577,8 @@ func writeCharts(vendor, chartName string, chartWrappers []*ChartWrapper) error 
 // loadExistingCharts loads the existing charts for package
 // <vendor>/<packageName> from the assets directory. It returns
 // them in a slice that is sorted by chart version, newest first.
-func loadExistingCharts(repoRoot string, vendor string, packageName string) ([]*ChartWrapper, error) {
-	assetsPath := filepath.Join(repoRoot, repositoryAssetsDir, vendor)
+func loadExistingCharts(repoPaths paths.Paths, vendor string, packageName string) ([]*ChartWrapper, error) {
+	assetsPath := filepath.Join(repoPaths.Assets, vendor)
 	tgzFiles, err := os.ReadDir(assetsPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return []*ChartWrapper{}, nil
@@ -998,7 +998,7 @@ func ensureIcons(c *cli.Context) error {
 		if _, err := icons.GetDownloadedIconPath(packageWrapper.Name); err == nil {
 			continue
 		}
-		existingCharts, err := loadExistingCharts(paths.RepoRoot(), packageWrapper.ParsedVendor, packageWrapper.Name)
+		existingCharts, err := loadExistingCharts(paths.Get(), packageWrapper.ParsedVendor, packageWrapper.Name)
 		if err != nil {
 			logrus.Errorf("failed to load existing charts for package %s: %s", packageWrapper.FullName(), err)
 		}
