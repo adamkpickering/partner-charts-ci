@@ -982,7 +982,7 @@ func listPackageWrappers(currentPackage string) (PackageList, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse upstream.yaml: %w", err)
 		}
-		packageWrapper.UpstreamYaml = &upstreamYaml
+		packageWrapper.UpstreamYaml = upstreamYaml
 
 		if packageWrapper.UpstreamYaml.Vendor != "" {
 			packageWrapper.Vendor = packageWrapper.UpstreamYaml.Vendor
