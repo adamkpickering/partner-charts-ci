@@ -38,6 +38,16 @@ type UpstreamYaml struct {
 	Vendor             string         `json:"Vendor"`
 }
 
+func (upstreamYaml *UpstreamYaml) SetDefaults() {
+	if upstreamYaml.Fetch == "" {
+		upstreamYaml.Fetch = "latest"
+	}
+
+	if upstreamYaml.ReleaseName == "" {
+		upstreamYaml.ReleaseName = upstreamYaml.HelmChart
+	}
+}
+
 func Parse(upstreamYamlPath string) (*UpstreamYaml, error) {
 	logrus.Debugf("Attempting to parse %s", upstreamYamlPath)
 	contents, err := os.ReadFile(upstreamYamlPath)
@@ -49,6 +59,8 @@ func Parse(upstreamYamlPath string) (*UpstreamYaml, error) {
 	if err := yaml.Unmarshal(contents, &upstreamYaml); err != nil {
 		return nil, fmt.Errorf("failed to parse as YAML: %w", err)
 	}
+
+	upstreamYaml.SetDefaults()
 
 	return upstreamYaml, err
 }

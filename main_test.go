@@ -192,45 +192,23 @@ func TestMain(t *testing.T) {
 		})
 
 		t.Run("should set release-name annotation properly", func(t *testing.T) {
-			testCases := []struct {
-				PackageWrapperName       string
-				UpstreamYamlName         string
-				ShouldBeUpstreamYamlName bool
-			}{
-				{
-					PackageWrapperName:       "packageWrapperName",
-					UpstreamYamlName:         "upstreamYamlName",
-					ShouldBeUpstreamYamlName: true,
-				},
-				{
-					PackageWrapperName:       "packageWrapperName",
-					UpstreamYamlName:         "",
-					ShouldBeUpstreamYamlName: false,
+			releaseName := "Release Name"
+			packageWrapper := PackageWrapper{
+				UpstreamYaml: &upstreamyaml.UpstreamYaml{
+					ReleaseName: releaseName,
 				},
 			}
-			for _, testCase := range testCases {
-				packageWrapper := PackageWrapper{
-					Name: testCase.PackageWrapperName,
-					UpstreamYaml: &upstreamyaml.UpstreamYaml{
-						ReleaseName: testCase.UpstreamYamlName,
-					},
-				}
-				helmChart := &chart.Chart{
-					Metadata: &chart.Metadata{
-						Dependencies: []*chart.Dependency{},
-					},
-				}
-				if err := addAnnotations(packageWrapper, helmChart); err != nil {
-					t.Fatalf("unexpected error: %s", err)
-				}
-				value, ok := helmChart.Metadata.Annotations[annotationReleaseName]
-				assert.True(t, ok)
-				if testCase.ShouldBeUpstreamYamlName {
-					assert.Equal(t, testCase.UpstreamYamlName, value)
-				} else {
-					assert.Equal(t, testCase.PackageWrapperName, value)
-				}
+			helmChart := &chart.Chart{
+				Metadata: &chart.Metadata{
+					Dependencies: []*chart.Dependency{},
+				},
 			}
+			if err := addAnnotations(packageWrapper, helmChart); err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			value, ok := helmChart.Metadata.Annotations[annotationReleaseName]
+			assert.True(t, ok)
+			assert.Equal(t, releaseName, value)
 		})
 
 		t.Run("should set namespace annotation properly", func(t *testing.T) {

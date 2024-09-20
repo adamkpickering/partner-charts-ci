@@ -733,11 +733,7 @@ func addAnnotations(packageWrapper PackageWrapper, helmChart *chart.Chart) error
 
 	annotations[annotationDisplayName] = packageWrapper.DisplayName
 
-	if packageWrapper.UpstreamYaml.ReleaseName != "" {
-		annotations[annotationReleaseName] = packageWrapper.UpstreamYaml.ReleaseName
-	} else {
-		annotations[annotationReleaseName] = packageWrapper.Name
-	}
+	annotations[annotationReleaseName] = packageWrapper.UpstreamYaml.ReleaseName
 
 	if packageWrapper.UpstreamYaml.Namespace != "" {
 		annotations[annotationNamespace] = packageWrapper.UpstreamYaml.Namespace
