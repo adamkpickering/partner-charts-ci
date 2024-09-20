@@ -2,7 +2,6 @@ package upstreamyaml
 
 import (
 	"os"
-	"path/filepath"
 
 	"github.com/sirupsen/logrus"
 
@@ -38,8 +37,7 @@ type UpstreamYaml struct {
 	Vendor             string         `json:"Vendor"`
 }
 
-func Parse(packagePath string) (UpstreamYaml, error) {
-	upstreamYamlPath := filepath.Join(packagePath, UpstreamOptionsFile)
+func Parse(upstreamYamlPath string) (UpstreamYaml, error) {
 	logrus.Debugf("Attempting to parse %s", upstreamYamlPath)
 	upstreamYamlFile, err := os.ReadFile(upstreamYamlPath)
 	upstreamYaml := UpstreamYaml{}
