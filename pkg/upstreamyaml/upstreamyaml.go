@@ -1,6 +1,7 @@
 package upstreamyaml
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/sirupsen/logrus"
@@ -39,12 +40,14 @@ type UpstreamYaml struct {
 
 func Parse(upstreamYamlPath string) (*UpstreamYaml, error) {
 	logrus.Debugf("Attempting to parse %s", upstreamYamlPath)
-	upstreamYamlFile, err := os.ReadFile(upstreamYamlPath)
-	upstreamYaml := &UpstreamYaml{}
+	contents, err := os.ReadFile(upstreamYamlPath)
 	if err != nil {
-		logrus.Debug(err)
-	} else {
-		err = yaml.Unmarshal(upstreamYamlFile, &upstreamYaml)
+		return nil, fmt.Errorf("failed to read: %w", err)
+	}
+
+	upstreamYaml := &UpstreamYaml{}
+	if err := yaml.Unmarshal(contents, &upstreamYaml); err != nil {
+		return nil, fmt.Errorf("failed to parse as YAML: %w", err)
 	}
 
 	return upstreamYaml, err
