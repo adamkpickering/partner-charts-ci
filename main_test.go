@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/rancher/partner-charts-ci/pkg/parse"
+	"github.com/rancher/partner-charts-ci/pkg/upstreamyaml"
 	"github.com/stretchr/testify/assert"
 
 	"helm.sh/helm/v3/pkg/chart"
@@ -89,7 +89,7 @@ func TestMain(t *testing.T) {
 		t.Run("should set auto-install annotation properly", func(t *testing.T) {
 			for _, autoInstall := range []string{"", "some-chart"} {
 				packageWrapper := PackageWrapper{
-					UpstreamYaml: &parse.UpstreamYaml{
+					UpstreamYaml: &upstreamyaml.UpstreamYaml{
 						AutoInstall: autoInstall,
 					},
 				}
@@ -112,7 +112,7 @@ func TestMain(t *testing.T) {
 		t.Run("should set experimental annotation properly", func(t *testing.T) {
 			for _, experimental := range []bool{false, true} {
 				packageWrapper := PackageWrapper{
-					UpstreamYaml: &parse.UpstreamYaml{
+					UpstreamYaml: &upstreamyaml.UpstreamYaml{
 						Experimental: experimental,
 					},
 				}
@@ -135,7 +135,7 @@ func TestMain(t *testing.T) {
 		t.Run("should set hidden annotation properly", func(t *testing.T) {
 			for _, hidden := range []bool{false, true} {
 				packageWrapper := PackageWrapper{
-					UpstreamYaml: &parse.UpstreamYaml{
+					UpstreamYaml: &upstreamyaml.UpstreamYaml{
 						Hidden: hidden,
 					},
 				}
@@ -157,7 +157,7 @@ func TestMain(t *testing.T) {
 
 		t.Run("should always set certified annotation", func(t *testing.T) {
 			packageWrapper := PackageWrapper{
-				UpstreamYaml: &parse.UpstreamYaml{},
+				UpstreamYaml: &upstreamyaml.UpstreamYaml{},
 			}
 			helmChart := &chart.Chart{
 				Metadata: &chart.Metadata{
@@ -176,7 +176,7 @@ func TestMain(t *testing.T) {
 			displayName := "Display Name"
 			packageWrapper := PackageWrapper{
 				DisplayName:  displayName,
-				UpstreamYaml: &parse.UpstreamYaml{},
+				UpstreamYaml: &upstreamyaml.UpstreamYaml{},
 			}
 			helmChart := &chart.Chart{
 				Metadata: &chart.Metadata{
@@ -211,7 +211,7 @@ func TestMain(t *testing.T) {
 			for _, testCase := range testCases {
 				packageWrapper := PackageWrapper{
 					Name: testCase.PackageWrapperName,
-					UpstreamYaml: &parse.UpstreamYaml{
+					UpstreamYaml: &upstreamyaml.UpstreamYaml{
 						ReleaseName: testCase.UpstreamYamlName,
 					},
 				}
@@ -236,7 +236,7 @@ func TestMain(t *testing.T) {
 		t.Run("should set namespace annotation properly", func(t *testing.T) {
 			for _, namespace := range []string{"", "test-namespace"} {
 				packageWrapper := PackageWrapper{
-					UpstreamYaml: &parse.UpstreamYaml{
+					UpstreamYaml: &upstreamyaml.UpstreamYaml{
 						Namespace: namespace,
 					},
 				}
@@ -285,7 +285,7 @@ func TestMain(t *testing.T) {
 			}
 			for _, testCase := range testCases {
 				packageWrapper := PackageWrapper{
-					UpstreamYaml: &parse.UpstreamYaml{
+					UpstreamYaml: &upstreamyaml.UpstreamYaml{
 						ChartYaml: chart.Metadata{
 							KubeVersion: testCase.UpstreamYamlKubeVersion,
 						},

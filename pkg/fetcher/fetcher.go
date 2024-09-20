@@ -15,7 +15,7 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/google/go-github/v53/github"
-	"github.com/rancher/partner-charts-ci/pkg/parse"
+	"github.com/rancher/partner-charts-ci/pkg/upstreamyaml"
 	"github.com/sirupsen/logrus"
 
 	"helm.sh/helm/v3/pkg/chart"
@@ -49,7 +49,7 @@ type ChartSourceMetadata struct {
 }
 
 // Constructs Chart Metadata for latest version published to Helm Repository
-func fetchUpstreamHelmrepo(upstreamYaml parse.UpstreamYaml) (ChartSourceMetadata, error) {
+func fetchUpstreamHelmrepo(upstreamYaml upstreamyaml.UpstreamYaml) (ChartSourceMetadata, error) {
 	upstreamYaml.HelmRepoUrl = strings.TrimSuffix(upstreamYaml.HelmRepoUrl, "/")
 	url := fmt.Sprintf("%s/index.yaml", upstreamYaml.HelmRepoUrl)
 
@@ -96,7 +96,7 @@ func fetchUpstreamHelmrepo(upstreamYaml parse.UpstreamYaml) (ChartSourceMetadata
 }
 
 // Constructs Chart Metadata for latest version published to ArtifactHub
-func fetchUpstreamArtifacthub(upstreamYaml parse.UpstreamYaml) (ChartSourceMetadata, error) {
+func fetchUpstreamArtifacthub(upstreamYaml upstreamyaml.UpstreamYaml) (ChartSourceMetadata, error) {
 	url := fmt.Sprintf("%s/%s/%s", artifactHubApi, upstreamYaml.AHRepoName, upstreamYaml.AHPackageName)
 
 	apiResp := ArtifactHubApiHelm{}
@@ -235,7 +235,7 @@ func gitCheckoutCommit(path, commit string) error {
 }
 
 // Constructs Chart Metadata for latest version published to Git Repository
-func fetchUpstreamGit(upstreamYaml parse.UpstreamYaml) (ChartSourceMetadata, error) {
+func fetchUpstreamGit(upstreamYaml upstreamyaml.UpstreamYaml) (ChartSourceMetadata, error) {
 	var upstreamCommit string
 
 	clonePath, err := gitCloneToDirectory(upstreamYaml.GitRepoUrl, upstreamYaml.GitBranch, !upstreamYaml.GitHubRelease)
@@ -305,7 +305,7 @@ func fetchUpstreamGit(upstreamYaml parse.UpstreamYaml) (ChartSourceMetadata, err
 	return chartSourceMeta, nil
 }
 
-func FetchUpstream(upstreamYaml parse.UpstreamYaml) (ChartSourceMetadata, error) {
+func FetchUpstream(upstreamYaml upstreamyaml.UpstreamYaml) (ChartSourceMetadata, error) {
 	var err error
 	chartSourceMetadata := ChartSourceMetadata{}
 	if upstreamYaml.AHRepoName != "" && upstreamYaml.AHPackageName != "" {
