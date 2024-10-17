@@ -11,10 +11,10 @@ import (
 )
 
 type ConfigurationYaml struct {
-	ValidateUpstreams []ValidateUpstream `json:"validate"`
+	ValidateUpstreams []validateUpstream `json:"validate"`
 }
 
-type ValidateUpstream struct {
+type validateUpstream struct {
 	Url    string
 	Branch string
 }

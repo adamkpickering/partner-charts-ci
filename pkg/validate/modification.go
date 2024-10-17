@@ -35,18 +35,18 @@ func (directoryComparison *DirectoryComparison) Merge(newComparison DirectoryCom
 	directoryComparison.Removed = append(directoryComparison.Removed, newComparison.Removed...)
 }
 
-// PreventReleasedChartModifications validates that no released chart
+// preventReleasedChartModifications validates that no released chart
 // versions have been modified outside of a few that must be allowed,
 // such as the deprecated field of Chart.yaml and Rancher-specific
 // annotations.
-func PreventReleasedChartModifications(configYaml ConfigurationYaml) []error {
+func preventReleasedChartModifications(configYaml ConfigurationYaml) []error {
 	cloneDir, err := os.MkdirTemp("", "gitRepo")
 	if err != nil {
 		logrus.Fatal(err)
 	}
 	defer os.RemoveAll(cloneDir)
 
-	err = CloneRepo(configYaml.ValidateUpstreams[0].Url, configYaml.ValidateUpstreams[0].Branch, cloneDir)
+	err = cloneRepo(configYaml.ValidateUpstreams[0].Url, configYaml.ValidateUpstreams[0].Branch, cloneDir)
 	if err != nil {
 		logrus.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func PreventReleasedChartModifications(configYaml ConfigurationYaml) []error {
 			logrus.Infof("Directory '%s' not in upstream. Skipping...", dirPath)
 			continue
 		}
-		newComparison, err := CompareDirectories(upstreamPath, updatePath)
+		newComparison, err := compareDirectories(upstreamPath, updatePath)
 		if err != nil {
 			logrus.Error(err)
 		}
@@ -77,7 +77,7 @@ func PreventReleasedChartModifications(configYaml ConfigurationYaml) []error {
 	return errors
 }
 
-func CloneRepo(url string, branch string, targetDir string) error {
+func cloneRepo(url string, branch string, targetDir string) error {
 	branchReference := fmt.Sprintf("refs/heads/%s", branch)
 	cloneOptions := git.CloneOptions{
 		URL:           url,
@@ -94,7 +94,7 @@ func CloneRepo(url string, branch string, targetDir string) error {
 	return nil
 }
 
-func ChecksumFile(filePath string) (string, error) {
+func checksumFile(filePath string) (string, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return "", err
@@ -111,7 +111,7 @@ func ChecksumFile(filePath string) (string, error) {
 	return hash, nil
 }
 
-func CompareDirectories(upstreamPath, updatePath string) (DirectoryComparison, error) {
+func compareDirectories(upstreamPath, updatePath string) (DirectoryComparison, error) {
 	logrus.Debugf("Comparing directories %s and %s", upstreamPath, updatePath)
 	directoryComparison := DirectoryComparison{}
 	checkedSet := make(map[string]struct{})
@@ -140,11 +140,11 @@ func CompareDirectories(upstreamPath, updatePath string) (DirectoryComparison, e
 			directoryComparison.Removed = append(directoryComparison.Removed, updateFilePath)
 			return nil
 		}
-		leftCheckSum, err := ChecksumFile(upstreamFilePath)
+		leftCheckSum, err := checksumFile(upstreamFilePath)
 		if err != nil {
 			logrus.Error(err)
 		}
-		rightCheckSum, err := ChecksumFile(updateFilePath)
+		rightCheckSum, err := checksumFile(updateFilePath)
 		if err != nil {
 			logrus.Error(err)
 		}
@@ -243,7 +243,7 @@ func matchHelmCharts(upstreamPath, updatePath string) (bool, error) {
 	}
 	defer os.RemoveAll(updateChartDirectory)
 
-	directoryComparison, err := CompareDirectories(upstreamChartDirectory, updateChartDirectory)
+	directoryComparison, err := compareDirectories(upstreamChartDirectory, updateChartDirectory)
 	if err != nil {
 		return false, fmt.Errorf("failed to compare directories: %w", err)
 	}
