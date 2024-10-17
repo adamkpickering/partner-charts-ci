@@ -1276,87 +1276,16 @@ func autoUpdate(c *cli.Context) {
 }
 
 // CLI function call - Validates repo against released
-func validateRepo(c *cli.Context) {
+func validateRepo(c *cli.Context) error {
 	configYamlPath := path.Join(paths.GetRepoRoot(), configOptionsFile)
 	configYaml, err := validate.ReadConfig(configYamlPath)
 	if err != nil {
 		logrus.Fatalf("failed to read %s: %s\n", configOptionsFile, err)
 	}
 
-	cloneDir, err := os.MkdirTemp("", "gitRepo")
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	defer os.RemoveAll(cloneDir)
+	validationErrors := validate.Run(configYaml)
 
-	err = validate.CloneRepo(configYaml.ValidateUpstreams[0].Url, configYaml.ValidateUpstreams[0].Branch, cloneDir)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-
-	directoryComparison := validate.DirectoryComparison{}
-	for _, dirPath := range []string{"assets"} {
-		upstreamPath := path.Join(cloneDir, dirPath)
-		updatePath := path.Join(paths.GetRepoRoot(), dirPath)
-		if _, err := os.Stat(updatePath); os.IsNotExist(err) {
-			logrus.Infof("Directory '%s' not in source. Skipping...", dirPath)
-			continue
-		}
-		if _, err := os.Stat(upstreamPath); os.IsNotExist(err) {
-			logrus.Infof("Directory '%s' not in upstream. Skipping...", dirPath)
-			continue
-		}
-		newComparison, err := validate.CompareDirectories(upstreamPath, updatePath)
-		if err != nil {
-			logrus.Error(err)
-		}
-		directoryComparison.Merge(newComparison)
-	}
-
-	reportValidation(directoryComparison)
-
-	logrus.Infof("Successfully validated\n  Upstream: %s\n  Branch: %s\n",
-		configYaml.ValidateUpstreams[0].Url, configYaml.ValidateUpstreams[0].Branch)
-}
-
-func reportValidation(directoryComparison validate.DirectoryComparison) {
-	repoRoot := paths.GetRepoRoot()
-
-	if len(directoryComparison.Added) > 0 {
-		outString := "Files Added:"
-		for _, addedPath := range directoryComparison.Added {
-			relativePath, err := filepath.Rel(repoRoot, addedPath)
-			if err != nil {
-				logrus.Fatalf("failed to get path of %s relative to %s", addedPath, repoRoot)
-			}
-			outString += fmt.Sprintf("\n - %s", relativePath)
-		}
-		logrus.Info(outString)
-	}
-
-	if len(directoryComparison.Removed) > 0 {
-		outString := "Files Removed:"
-		for _, removedPath := range directoryComparison.Removed {
-			relativePath, err := filepath.Rel(repoRoot, removedPath)
-			if err != nil {
-				logrus.Fatalf("failed to get path of %s relative to %s", removedPath, repoRoot)
-			}
-			outString += fmt.Sprintf("\n - %s", relativePath)
-		}
-		logrus.Warn(outString)
-	}
-
-	if len(directoryComparison.Modified) > 0 {
-		outString := "Files Modified:"
-		for _, modifiedPath := range directoryComparison.Modified {
-			relativePath, err := filepath.Rel(repoRoot, modifiedPath)
-			if err != nil {
-				logrus.Fatalf("failed to get path of %s relative to %s", modifiedPath, repoRoot)
-			}
-			outString += fmt.Sprintf("\n - %s", relativePath)
-		}
-		logrus.Fatal(outString)
-	}
+	return errors.Join(validationErrors...)
 }
 
 // cullCharts removes chart versions that are older than the passed number of
