@@ -66,7 +66,7 @@ func TestMain(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to get absolute path to update testing directory: %s", err)
 			}
-			directoryComparison, err := CompareDirectories(upstreamPath, updatePath)
+			directoryComparison, err := compareDirectories(upstreamPath, updatePath)
 			if err != nil {
 				t.Fatalf("unexpected error: %s", err)
 			}
@@ -84,7 +84,7 @@ func TestMain(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to get absolute path to update testing directory: %s", err)
 			}
-			directoryComparison, err := CompareDirectories(upstreamPath, updatePath)
+			directoryComparison, err := compareDirectories(upstreamPath, updatePath)
 			if err != nil {
 				t.Fatalf("unexpected error: %s", err)
 			}
@@ -102,7 +102,7 @@ func TestMain(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to get absolute path to update testing directory: %s", err)
 			}
-			directoryComparison, err := CompareDirectories(upstreamPath, updatePath)
+			directoryComparison, err := compareDirectories(upstreamPath, updatePath)
 			if err != nil {
 				t.Fatalf("unexpected error: %s", err)
 			}
@@ -120,7 +120,7 @@ func TestMain(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to get absolute path to update testing directory: %s", err)
 			}
-			directoryComparison, err := CompareDirectories(upstreamPath, updatePath)
+			directoryComparison, err := compareDirectories(upstreamPath, updatePath)
 			if err != nil {
 				t.Fatalf("unexpected error: %s", err)
 			}

@@ -5,7 +5,7 @@ type ValidationFunc func(configYaml ConfigurationYaml) []error
 func Run(configYaml ConfigurationYaml) []error {
 	validationErrors := []error{}
 	validationFuncs := []ValidationFunc{
-		PreventReleasedChartModifications,
+		preventReleasedChartModifications,
 	}
 	for _, validationFunc := range validationFuncs {
 		errors := validationFunc(configYaml)
